@@ -1,0 +1,52 @@
+- name: Instalacja ADDS w nowym lesie
+  hosts: windows
+  gather_facts: false
+
+  vars_files:
+    - secrets.yml  
+
+  vars:
+    domain_name: "adds.IaC.pl"
+    dc_ip: "172.22.1.10"            
+    safe_mode_password: "{{ dsrm_password }}"  
+
+  tasks:
+    - name: Ustawia DNS na siebie
+      ansible.windows.win_dns_client:
+        adapter_names: "*"
+        ipv4_addresses:
+          - "172.22.1.10"
+
+    - name: Instaluj ADDS oraz DNS
+      ansible.windows.win_feature:
+        name:
+          - AD-Domain-Services
+          - DNS
+        state: present
+        include_management_tools: true
+      register: Role
+
+    - name: Reboot
+      ansible.windows.win_reboot:
+        reboot_timeout: 1800
+      when: Role.reboot_required
+
+    - name: Stworz nowy LAS
+      microsoft.ad.domain:
+        dns_domain_name: "{{ domain_name }}"
+        safe_mode_password: "{{ safe_mode_password }}"
+      register: domena   
+
+    - name: Restart po promowaniu do kontrolera domeny
+      ansible.windows.win_reboot:
+        reboot_timeout: 1800
+        post_reboot_delay: 10
+      when: domena.reboot_required
+      
+    - name: Dodanie rekordu dns
+      ansible.windows.win_dns_record:
+        zone: "adds.IaC.pl"
+        name: "linux"
+        type: "A"
+        value: "172.22.1.11"
+        state: present

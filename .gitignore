@@ -22,3 +22,5 @@ override.tf.json
 # --- CLI and local environment ---
 .terraformrc
 terraform.rc
+
+secrets.yml

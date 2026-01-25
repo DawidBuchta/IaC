@@ -1,0 +1,41 @@
+- name: Instalacja Serwera www
+  hosts: windows
+  gather_facts: false
+
+  vars_files:
+    - secrets.yml
+
+  tasks:
+    - name: Zainstaluj IIS
+      ansible.windows.win_feature:
+        name: Web-Server
+        state: present
+        include_management_tools: true
+      register: iis
+
+    - name: Zrestartuj jeśli wymagany
+      ansible.windows.win_reboot:
+        reboot_timeout: 1200
+      when: iis.reboot_required
+
+    - name: Tworzenie katalogu
+      ansible.windows.win_file:
+        path: C:\www\strona
+        state: directory
+
+    - name: Wgraj index.html
+      ansible.windows.win_copy:
+        dest: C:\www\strona\index.html
+        content: |
+          <html>
+          <body>
+          <h1>Hej Strona dziala</h1>
+          <p>Host: {{ inventory_hostname }}</p>
+          </body>
+          </html>
+
+    - name: Konfiguracja Default Web Site żeby wskazywał na nowy katalog
+      community.windows.win_iis_website:
+        name: "Default Web Site"
+        state: started
+        physical_path: C:\www\strona

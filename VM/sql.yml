@@ -1,0 +1,49 @@
+- name: Instalacja SQL Server Express na Windows
+  hosts: windows
+  gather_facts: false
+  vars_files:
+    - secrets.yml
+
+  vars:
+    sql_tcp_port: 1433
+    sql_instance: "Optima"
+
+  tasks:
+    - name: Zainstaluj Chocolatey
+      chocolatey.chocolatey.win_chocolatey:
+        name:  chocolatey
+        state: present
+        
+    - name: Zainstaluj SQL Server Express z nazwa instancji
+      chocolatey.chocolatey.win_chocolatey:
+        name: sql-server-express
+        state: present
+        install_args: >
+          /IACCEPTSQLSERVERLICENSETERMS /Q /ACTION=install
+          /INSTANCENAME={{ sql_instance }}
+          /INSTANCEID={{ sql_instance }}
+          /UPDATEENABLED=FALSE
+        override_args: true
+        choco_args:
+          - --execution-timeout=14400
+
+    - name: Zainstaluj SSMS (SQL Server Management Studio)
+      chocolatey.chocolatey.win_chocolatey:
+        name: sql-server-management-studio
+        state: present
+        choco_args:
+          - --execution-timeout=14400
+      register: ssms_install
+      retries: 6
+      delay: 60
+      until: ssms_install is succeeded
+
+    - name: Otwórz port w Firewall (TCP 1433)
+      community.windows.win_firewall_rule:
+        name: "SQL Server TCP 1433"
+        localport: "{{ sql_tcp_port }}"
+        action: allow
+        direction: in
+        protocol: tcp
+        state: present
+        enabled: true
