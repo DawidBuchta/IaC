@@ -10,15 +10,14 @@ terraform {
 provider "azurerm" {
   features {}
 
-  subscription_id = "102057f1-f742-4ffe-83c0-872a3b4f7578"
-  tenant_id       = "50c76291-0c80-4444-a2fb-4f8ab168c311"
+  subscription_id = "4e69d704-949a-48c4-88e2-b87c0919017f"
 }
 
-//["germanywestcentral","swedencentral","italynorth","uksouth","norwayeast"]
+//["norwayeast","italynorth","polandcentral","germanywestcentral","spaincentral"]
 resource "azurerm_resource_group" "IaC" {
 
   name     = "Infrastructure_as_Code"
-  location = "uksouth"
+  location = "polandcentral"
 
 }
 
@@ -50,9 +49,6 @@ resource "azurerm_network_security_group" "Sec-Grp" {
   resource_group_name = azurerm_resource_group.IaC.name
   depends_on          = [azurerm_resource_group.IaC]
 
-  tags = {
-    enviroment = "dev"
-  }
 }
 
 //firewall rule
@@ -87,9 +83,7 @@ resource "azurerm_public_ip" "wan1" {
   idle_timeout_in_minutes = 30
   depends_on              = [azurerm_resource_group.IaC]
 
-  tags = {
-    environment = "Dev"
-  }
+
 }
 //ip zewnetrzne do vm linux
 resource "azurerm_public_ip" "wan2" {
@@ -100,9 +94,7 @@ resource "azurerm_public_ip" "wan2" {
   idle_timeout_in_minutes = 30
   depends_on              = [azurerm_resource_group.IaC]
 
-  tags = {
-    environment = "Dev"
-  }
+
 }
 
 //interfejs sieciowy podpinany do vm main
@@ -119,10 +111,7 @@ resource "azurerm_network_interface" "lancard1" {
     private_ip_address            = "172.22.1.10"
     public_ip_address_id          = azurerm_public_ip.wan1.id
   }
-  tags = {
-
-    envoriment = "dev"
-  }
+  
 }
 //interfejs sieciowy podpinany do vm linux
 resource "azurerm_network_interface" "lancard2" {
@@ -138,10 +127,7 @@ resource "azurerm_network_interface" "lancard2" {
     private_ip_address            = "172.22.1.11"
     public_ip_address_id          = azurerm_public_ip.wan2.id
   }
-  tags = {
-
-    envoriment = "dev"
-  }
+  
 }
 
 
@@ -160,8 +146,7 @@ resource "azurerm_windows_virtual_machine" "main-server" {
 
   //priority                  = "Spot"
   //eviction_policy           = "Deallocate"
-  automatic_updates_enabled = false
-  computer_name             = "Tatake"
+  computer_name             = "main-server"
   patch_mode                = "AutomaticByPlatform"
 
   os_disk {
@@ -186,7 +171,7 @@ resource "azurerm_virtual_machine_extension" "enable_winrm_main" {
   type_handler_version = "1.10"
 
   settings = jsonencode({
-    commandToExecute = "powershell -ExecutionPolicy Bypass -Command \"Enable-PSRemoting -Force; winrm quickconfig -q; winrm set winrm/config/service '@{AllowUnencrypted=\\\"true\\\"}'; winrm set winrm/config/service/auth '@{Basic=\\\"true\\\"}'; New-NetFirewallRule -DisplayName 'WinRM-HTTP-5985' -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5985 -Profile Any\""
+    commandToExecute = "powershell -ExecutionPolicy Bypass -Command \"Enable-PSRemoting -Force\""
   })
 }
 
@@ -194,7 +179,8 @@ resource "azurerm_linux_virtual_machine" "linux-server" {
   name                            = "linux"
   resource_group_name             = azurerm_resource_group.IaC.name
   location                        = azurerm_resource_group.IaC.location
-  size                            = "Standard_B1s"
+  //Standard_B2as_v2, Standard_B1s
+  size                            = "Standard_B2as_v2"
   admin_username                  = var.admin_username
   admin_password                  = var.admin_password
   disable_password_authentication = false
@@ -205,7 +191,7 @@ resource "azurerm_linux_virtual_machine" "linux-server" {
 
   //priority        = "Spot"
   //eviction_policy = "Deallocate"
-  computer_name         = "Tatake"
+  computer_name         = "linux-server"
   patch_mode            = "ImageDefault"
   patch_assessment_mode = "ImageDefault"
 

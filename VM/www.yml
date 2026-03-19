@@ -35,7 +35,7 @@
           </html>
 
     - name: Konfiguracja Default Web Site żeby wskazywał na nowy katalog
-      community.windows.win_iis_website:
+      microsoft.iis.website:
         name: "Default Web Site"
         state: started
         physical_path: C:\www\strona

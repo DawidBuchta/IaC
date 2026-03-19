@@ -1,0 +1,9 @@
+- name: Reboot po wszystkim
+  hosts: windows
+  gather_facts: false
+  vars_files:
+    - secrets.yml
+  tasks:
+    - name: Reboot
+      ansible.windows.win_reboot:
+        reboot_timeout: 3600
