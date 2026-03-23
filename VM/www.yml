@@ -5,10 +5,22 @@
   vars_files:
     - secrets.yml
 
+  vars:
+    php: C:\PHP
+    site_name: "sklep"
+    php_ini: 'C:\PHP\php.ini'
+    php_ext: 'C:\PHP\ext'
+    temp_dir: 'C:\Temp'
+    msphpsql: 'C:\Temp\msphpsql'
+    sqlsrv_dll: 'php_sqlsrv_85_nts_x64.dll'
+    pdo_sqlsrv_dll: 'php_pdo_sqlsrv_85_nts_x64.dll'
+
   tasks:
-    - name: Zainstaluj IIS
+    - name: Zainstaluj IIS i CGI
       ansible.windows.win_feature:
-        name: Web-Server
+        name: 
+          - Web-Server
+          - Web-CGI
         state: present
         include_management_tools: true
       register: iis
@@ -20,22 +32,67 @@
 
     - name: Tworzenie katalogu
       ansible.windows.win_file:
-        path: C:\www\strona
+        path: "{{ php }}"
         state: directory
 
-    - name: Wgraj index.html
-      ansible.windows.win_copy:
-        dest: C:\www\strona\index.html
-        content: |
-          <html>
-          <body>
-          <h1>Hej Strona dziala</h1>
-          <p>Host: {{ inventory_hostname }}</p>
-          </body>
-          </html>
+    - name: Zainstaluj PHP przez Chocolatey
+      chocolatey.chocolatey.win_chocolatey:
+        name: php
+        state: present
+        package_params: '/InstallDir:{{ php }}'
 
-    - name: Konfiguracja Default Web Site żeby wskazywał na nowy katalog
+    - name: Dodaj FastCGI dla PHP
+      ansible.windows.win_command: >
+        C:\Windows\System32\inetsrv\appcmd.exe set config /section:system.webServer/fastCgi
+        /+"[fullPath='{{ php }}\php-cgi.exe']"
+      ignore_errors: true
+
+    - name: Dodaj obsługe PHP
+      ansible.windows.win_command: >
+        C:\Windows\System32\inetsrv\appcmd.exe set config
+        /section:system.webServer/handlers
+        /+"[name='PHP_via_FastCGI',path='*.php',verb='GET,HEAD,POST',modules='FastCgiModule',scriptProcessor='{{ php }}\php-cgi.exe',resourceType='Either']"
+      ignore_errors: true
+
+    - name: Dołącz taski SQL
+      ansible.builtin.include_tasks:
+        file: sterownik.yml
+
+    - name: Wgraj pliki strony
+      ansible.windows.win_copy:
+        src: ./strona/
+        dest: C:\www\strona\
+
+    - name: Usuniecie Default Web Site
       microsoft.iis.website:
         name: "Default Web Site"
+        state: absent
+
+    - name: Konfiguracja nowej strony internetowej
+      microsoft.iis.website:
+        name: "{{ site_name }}"
         state: started
-        physical_path: C:\www\strona
+        physical_path: C:\www\strona\public
+        bindings:
+          set:
+            - port: 80
+              ip: "*"
+              hostname: "sklep.local"
+              protocol: http
+            - ip: "*"
+              port: 80
+              hostname: ""
+              protocol: http
+
+    - name: Pobierz zewnętrzny adres IP
+      ansible.windows.win_uri:
+        url: https://api.ipify.org
+        return_content: true
+      register: public_ip
+
+    - name: Ustaw server_name w config.php
+      community.windows.win_lineinfile:
+        path: C:\www\strona\config.php
+        regexp: '^\$conf->server_name\s*='
+        line: "$conf->server_name = '{{ public_ip.content | trim }}';"
+

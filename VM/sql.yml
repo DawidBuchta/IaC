@@ -6,26 +6,87 @@
 
   vars:
     sql_tcp_port: 1433
-    sql_instance: "Optima"
-
+    sql_instance: "SQL"
+    sql_service_name: 'MSSQL${{ sql_instance }}'
+    sql_tcp_ipall: 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\MSSQL16.{{ sql_instance }}\MSSQLServer\SuperSocketNetLib\Tcp\IPAll'
+    baza: 'skrypt.sql'
+    plik_z_baza: 'C:\baza\{{ baza }}'
+   
   tasks:
     - name: Zainstaluj Chocolatey
       chocolatey.chocolatey.win_chocolatey:
         name:  chocolatey
         state: present
+
+#niepotrzebne w celach przyspieszenia isntlacji na slabej maszynie 
+    - name: Dodaj wyjątki Defender dla SQL i SSMS
+      ansible.windows.win_powershell:
+        script: |
+          Add-MpPreference -ExclusionPath "C:\Program Files\Microsoft SQL Server"
+          Add-MpPreference -ExclusionPath "C:\Program Files (x86)\Microsoft SQL Server"
+          Add-MpPreference -ExclusionPath "C:\Program Files (x86)\Microsoft SQL Server Management Studio"
+          Add-MpPreference -ExclusionPath "C:\ProgramData\chocolatey"
+          Add-MpPreference -ExclusionPath "C:\SQLData"
+          Add-MpPreference -ExclusionPath "C:\SQLLogs"
+          Add-MpPreference -ExclusionPath "C:\SQLBackups"
+
+          Add-MpPreference -ExclusionProcess "sqlservr.exe"
+          Add-MpPreference -ExclusionProcess "sqlagent.exe"
+          Add-MpPreference -ExclusionProcess "setup.exe"
+          Add-MpPreference -ExclusionProcess "sqlwriter.exe"
+          Add-MpPreference -ExclusionProcess "ssms.exe"
         
     - name: Zainstaluj SQL Server Express z nazwa instancji
       chocolatey.chocolatey.win_chocolatey:
         name: sql-server-express
         state: present
-        install_args: >
+        install_args: >-
           /IACCEPTSQLSERVERLICENSETERMS /Q /ACTION=install
           /INSTANCENAME={{ sql_instance }}
           /INSTANCEID={{ sql_instance }}
           /UPDATEENABLED=FALSE
+          /SECURITYMODE=SQL
+          /SAPWD="{{ sa_password }}"
+          /SQLSYSADMINACCOUNTS="BUILTIN\Administrators"
+          /TCPENABLED=1
         override_args: true
         choco_args:
           - --execution-timeout=14400
+      become: true
+      become_method: runas
+      become_user: "{{ ansible_user }}"
+      vars:
+        ansible_become_password: "{{ ansible_password }}"
+        ansible_become_flags: logon_type=interactive logon_flags=with_profile
+
+    - name: Wyczyść dynamiczne porty w IPAll
+      ansible.windows.win_regedit:
+        path: "{{ sql_tcp_ipall }}"
+        name: TcpDynamicPorts
+        data: ""
+        type: string
+
+    - name: Ustaw statyczny port 1433 w IPAll
+      ansible.windows.win_regedit:
+        path: "{{ sql_tcp_ipall }}"
+        name: TcpPort
+        data: "{{ sql_tcp_port }}"
+        type: string
+
+    - name: Restart SQL Server
+      ansible.windows.win_service:
+        name: MSSQL${{ sql_instance }}
+        state: restarted
+
+    - name: Tworzenie katalogu
+      ansible.windows.win_file:
+        path: C:\baza
+        state: directory
+
+    - name: Wgraj pliki z baza
+      ansible.windows.win_copy:
+        src: ./{{ baza }}
+        dest: C:\baza
 
     - name: Zainstaluj SSMS (SQL Server Management Studio)
       chocolatey.chocolatey.win_chocolatey:
@@ -33,10 +94,14 @@
         state: present
         choco_args:
           - --execution-timeout=14400
-      register: ssms_install
-      retries: 6
-      delay: 60
-      until: ssms_install is succeeded
+
+    - name: Wykonaj skrypt SQL jako sa
+      ansible.windows.win_command: >
+        "C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\sqlcmd.exe"
+        -S .\{{ sql_instance }}
+        -U sa
+        -P "{{ sa_password }}"
+        -i "{{ plik_z_baza }}"
 
     - name: Otwórz port w Firewall (TCP 1433)
       community.windows.win_firewall_rule:

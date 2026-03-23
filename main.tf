@@ -181,7 +181,8 @@ resource "azurerm_linux_virtual_machine" "linux-server" {
   location                        = azurerm_resource_group.IaC.location
   //Standard_B2as_v2, Standard_B1s
   //tanio B2ts_v2
-  size                            = "Standard_B2ts_v2"
+  //B2ats_v2 darmowa
+  size                            = "Standard_B2ats_v2"
   admin_username                  = var.admin_username
   admin_password                  = var.admin_password
   disable_password_authentication = false

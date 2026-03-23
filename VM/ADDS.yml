@@ -6,8 +6,7 @@
     - secrets.yml  
 
   vars:
-    domain_name: "adds.IaC.pl"
-    dc_ip: "172.22.1.10"            
+    domain_name: "adds.IaC.pl"          
     safe_mode_password: "{{ dsrm_password }}"  
 
   tasks:
@@ -19,7 +18,6 @@
           - DNS
         state: present
         include_management_tools: true
-      register: Role
 
     - name: Stworz nowy LAS
       microsoft.ad.domain:
@@ -27,12 +25,19 @@
         safe_mode_password: "{{ safe_mode_password }}"
         reboot: true
         reboot_timeout: 1800
-      register: domena   
       
     - name: Dodanie rekordu dns
       ansible.windows.win_dns_record:
-        zone: "adds.IaC.pl"
+        zone: "{{ domain_name }}"
         name: "linux"
         type: "A"
         value: "172.22.1.11"
+        state: present
+
+    - name: Dodanie rekordu dns
+      ansible.windows.win_dns_record:
+        zone: "{{ domain_name }}"
+        name: "sklep.local"
+        type: "A"
+        value: "172.22.1.10"
         state: present

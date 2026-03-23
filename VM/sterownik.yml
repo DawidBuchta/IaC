@@ -1,0 +1,47 @@
+    - name: Utwórz katalog temp
+      ansible.windows.win_file:
+        path: "{{ temp_dir }}"
+        state: directory
+
+    - name: Zainstaluj ODBC Driver przez Chocolatey
+      chocolatey.chocolatey.win_chocolatey:
+        name: sqlserver-odbcdriver
+        state: present
+
+    - name: Wgraj paczkę msphpsql
+      ansible.windows.win_copy:
+        src: ./msphpsql
+        dest: "{{ temp_dir }}"
+
+    - name: Skopiuj sqlsrv dll
+      ansible.windows.win_copy:
+        src: "{{ msphpsql }}\\{{ sqlsrv_dll }}"
+        dest: "{{ php_ext }}\\{{ sqlsrv_dll }}"
+        remote_src: true
+
+    - name: Skopiuj pdo_sqlsrv dll
+      ansible.windows.win_copy:
+        src: "{{ msphpsql }}\\{{ pdo_sqlsrv_dll }}"
+        dest: "{{ php_ext }}\\{{ pdo_sqlsrv_dll }}"
+        remote_src: true
+
+    - name: Włącz sqlsrv w php.ini
+      community.windows.win_lineinfile:
+        path: "{{ php_ini }}"
+        regexp: '^;?\s*extension\s*=\s*{{ sqlsrv_dll | regex_escape() }}$'
+        line: "extension={{ sqlsrv_dll }}"
+        insertafter: EOF
+        state: present
+
+    - name: Włącz pdo_sqlsrv w php.ini
+      community.windows.win_lineinfile:
+        path: "{{ php_ini }}"
+        regexp: '^;?\s*extension\s*=\s*{{ pdo_sqlsrv_dll | regex_escape() }}$'
+        line: "extension={{ pdo_sqlsrv_dll }}"
+        insertafter: EOF
+        state: present
+
+    - name: Restart IIS
+      ansible.windows.win_service:
+        name: W3SVC
+        state: restarted

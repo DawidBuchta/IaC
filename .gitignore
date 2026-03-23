@@ -24,3 +24,7 @@ override.tf.json
 terraform.rc
 
 secrets.yml
+
+vm.zip
+skrypt.sql
+strona
