@@ -151,7 +151,7 @@ resource "azurerm_windows_virtual_machine" "main-server" {
 
   os_disk {
     caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
+    storage_account_type = "StandardSSD_LRS"
 
   }
 
@@ -180,7 +180,8 @@ resource "azurerm_linux_virtual_machine" "linux-server" {
   resource_group_name             = azurerm_resource_group.IaC.name
   location                        = azurerm_resource_group.IaC.location
   //Standard_B2as_v2, Standard_B1s
-  size                            = "Standard_B2as_v2"
+  //tanio B2ts_v2
+  size                            = "Standard_B2ts_v2"
   admin_username                  = var.admin_username
   admin_password                  = var.admin_password
   disable_password_authentication = false
@@ -192,8 +193,6 @@ resource "azurerm_linux_virtual_machine" "linux-server" {
   //priority        = "Spot"
   //eviction_policy = "Deallocate"
   computer_name         = "linux-server"
-  patch_mode            = "ImageDefault"
-  patch_assessment_mode = "ImageDefault"
 
   os_disk {
     caching              = "ReadWrite"
@@ -216,9 +215,32 @@ packages:
   - ansible
   - python3-winrm
   - sshpass
+  - unzip
 runcmd:
   - ansible-galaxy collection install ansible.windows community.windows microsoft.ad chocolatey.chocolatey
 CLOUDINIT
   )
+}
+resource "terraform_data" "configure" {
+  depends_on = [azurerm_linux_virtual_machine.linux-server,azurerm_windows_virtual_machine.main-server]
+
+  connection {
+    type        = "ssh"
+    host        = azurerm_public_ip.wan2.ip_address
+    user        = var.admin_username
+    password    = var.admin_password
+  }
+
+  provisioner "file" {
+    source      = "./VM"
+    destination = format("/home/%s", var.admin_username)
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      format("cd /home/%s/VM", var.admin_username),
+      "ansible-playbook -i config.ini playbook.yaml"
+    ]
+  }
 }
 
