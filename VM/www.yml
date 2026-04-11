@@ -75,10 +75,6 @@
         physical_path: C:\www\strona\public
         bindings:
           set:
-            - port: 80
-              ip: "*"
-              hostname: "sklep.local"
-              protocol: http
             - ip: "*"
               port: 80
               hostname: ""
