@@ -13,3 +13,5 @@ ansible_user: .\admin
 ansible_password: "password"
 
 dsrm_password: "dsrm#password"
+
+sa_password: "haslo_bazy_danych"
